@@ -52,7 +52,9 @@
   <ItemGroup>
     <Compile Include="src\ExtraBinds.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="src\Misc\KeybindExtended.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="src\Misc\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

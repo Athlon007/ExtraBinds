@@ -9,7 +9,7 @@ namespace ExtraBinds
         public override string ID => "ExtraBinds"; //Your mod ID (unique)
         public override string Name => "Extra Binds (Alpha)"; //You mod name
         public override string Author => "Athlon"; //Your Username
-        public override string Version => "0.0.1"; //Version
+        public override string Version => "0.0.2"; //Version
 
         FsmString playerCurrentVehicle;
 
@@ -51,9 +51,9 @@ namespace ExtraBinds
         Keybind lookLeft = new Keybind("lookLeft", "Look Left", KeyCode.Comma);
         Keybind lookRight = new Keybind("lookRight", "Look Right", KeyCode.Period);
         Keybind lookBack = new Keybind("lookBack", "Look Back", KeyCode.Slash);
-        KeybindExtended ignition = new KeybindExtended("ignition", "Ignition", KeyCode.R);
-        KeybindExtended radioVolumeUp = new KeybindExtended("radioUp", "Radio Volume Up", KeyCode.KeypadPlus);
-        KeybindExtended radioVolumeDown = new KeybindExtended("radioDown", "Radio Volume Down", KeyCode.KeypadMinus);
+        Keybind ignition = new Keybind("ignition", "Ignition", KeyCode.R);
+        Keybind radioVolumeUp = new Keybind("radioUp", "Radio Volume Up", KeyCode.KeypadPlus);
+        Keybind radioVolumeDown = new Keybind("radioDown", "Radio Volume Down", KeyCode.KeypadMinus);
 
         // All settings should be created here. 
         // DO NOT put anything else here that settings.
@@ -91,19 +91,19 @@ namespace ExtraBinds
             // RADIO
             if (radioKnobFsm != null)
             {
-                if (radioVolumeDown.IsPressed())
+                if (radioVolumeDown.GetKeybind())
                 {
                     radioKnobSphereCollider.radius = defaultRadioSphereRadius + 0.6f;
                     radioKnobFsm.SendEvent("TIGHTEN");
                 }
                 
-                if (radioVolumeUp.IsPressed())
+                if (radioVolumeUp.GetKeybind())
                 {
                     radioKnobSphereCollider.radius = defaultRadioSphereRadius + 0.6f;
                     radioKnobFsm.SendEvent("UNTIGHTEN");
                 }
 
-                if (radioVolumeUp.IsUp() || radioVolumeDown.IsUp())
+                if (radioVolumeUp.GetKeybindUp() || radioVolumeDown.GetKeybindUp())
                 {
                     radioKnobSphereCollider.radius = defaultRadioSphereRadius;
                 }
@@ -112,12 +112,12 @@ namespace ExtraBinds
             // IGNITION
             if (currentIgnitionFsm.Length > 0 && currentIgnitionFsm == playerCurrentVehicle.Value)
             {
-                if (ignition.IsPressed())
+                if (ignition.GetKeybind())
                 {
                     ignitionSphereCollider.radius = defaultSphereRadius + ignitionSphereValueToAdd;
                     ignitionFsm.SendEvent("ACC");
                 }
-                else if (ignition.IsUp())
+                else if (ignition.GetKeybindUp())
                 {
                     ignitionSphereCollider.radius = defaultSphereRadius;
                     ignitionFsm.SendEvent("FINISHED");
@@ -129,16 +129,16 @@ namespace ExtraBinds
             // y u do dis, toplessgun?
             vehicleDefaultLookAngle = playerCurrentVehicle.Value == "Satsuma" ? 180 : 0;
 
-            if (lookLeft.IsPressed() || lookRight.IsPressed() || lookBack.IsPressed())
+            if (lookLeft.GetKeybind() || lookRight.GetKeybind() || lookBack.GetKeybind())
             {
                 isAnyLookKeyUp = true;
                 float lookAngle = currentLookAngle;
                 
-                if (lookLeft.IsPressed())
+                if (lookLeft.GetKeybind())
                     lookAngle *= -1;
 
                 // Look back if lookBack button is pressed, or lookLeft and lookRight are pressed at the same time
-                if (lookBack.IsPressed() || (lookLeft.IsPressed() && lookRight.IsPressed()))
+                if (lookBack.GetKeybind() || (lookLeft.GetKeybind() && lookRight.GetKeybind()))
                     lookAngle = LookBackAngle;
 
                 SetPlayerAngle(lookAngle);
@@ -182,7 +182,7 @@ namespace ExtraBinds
                 default:
                     currentIgnitionFsm = "";
                     radioKnobFsm = null;
-                    break;
+                    return;
                 case "Satsuma":
                     ignitionFsm = GameObject.Find("SATSUMA(557kg, 248)").transform.Find("Dashboard/Steering/steering_column2/Ignition").gameObject.GetComponent<PlayMakerFSM>();
 
