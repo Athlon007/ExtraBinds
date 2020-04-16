@@ -7,19 +7,22 @@ namespace ExtraBinds
     public class ExtraBinds : Mod
     {
         public override string ID => "ExtraBinds"; //Your mod ID (unique)
-        public override string Name => "Extra Binds (Alpha)"; //You mod name
+        public override string Name => "Extra Binds (Beta)"; //You mod name
         public override string Author => "Athlon"; //Your Username
-        public override string Version => "0.0.2"; //Version
+        public override string Version => "0.1.0"; //Version
 
         FsmString playerCurrentVehicle;
 
         // Look
         const float LookBackAngle = 150;
         Transform playerTransform;
+        PlayMakerFSM gifuStrafe;
         static float currentLookAngle;
         float vehicleDefaultLookAngle;
         
         bool isAnyLookKeyUp;
+        bool leftPressedFirst;
+        bool rightPressedFirst;
 
         // Ignition
         string currentIgnitionFsm;
@@ -33,6 +36,9 @@ namespace ExtraBinds
         SphereCollider radioKnobSphereCollider;
         float defaultRadioSphereRadius;
 
+        // Horn
+        GameObject hornObject;
+
         // Set this to true if you will be load custom assets from Assets folder.
         // This will create subfolder in Assets folder for your mod.
         public override bool UseAssetsFolder => false;
@@ -44,9 +50,10 @@ namespace ExtraBinds
             playerCurrentVehicle = PlayMakerGlobals.Instance.Variables.FindFsmString("PlayerCurrentVehicle");
             UpdateLookAngleValue();
 
+            gifuStrafe = GameObject.Find("GIFU(750/450psi)").transform.Find("LOD/DriverHeadPivot/CameraPivot").gameObject.GetComponent<PlayMakerFSM>();
         }
 
-        static Settings angle = new Settings("angle", "Angle", 50, UpdateLookAngleValue);
+        static Settings angle = new Settings("angle", "Look Angle", 60, UpdateLookAngleValue);
 
         Keybind lookLeft = new Keybind("lookLeft", "Look Left", KeyCode.Comma);
         Keybind lookRight = new Keybind("lookRight", "Look Right", KeyCode.Period);
@@ -54,6 +61,7 @@ namespace ExtraBinds
         Keybind ignition = new Keybind("ignition", "Ignition", KeyCode.R);
         Keybind radioVolumeUp = new Keybind("radioUp", "Radio Volume Up", KeyCode.KeypadPlus);
         Keybind radioVolumeDown = new Keybind("radioDown", "Radio Volume Down", KeyCode.KeypadMinus);
+        Keybind horn = new Keybind("horn", "Horn", KeyCode.B);
 
         // All settings should be created here. 
         // DO NOT put anything else here that settings.
@@ -61,10 +69,13 @@ namespace ExtraBinds
         {
             Settings.AddSlider(this, angle, 20, 90);
 
+            Keybind.AddHeader(this, "Looking");
             Keybind.Add(this, lookLeft);
             Keybind.Add(this, lookRight);
             Keybind.Add(this, lookBack);
+            Keybind.AddHeader(this, "Vehicle Controls");
             Keybind.Add(this, ignition);
+            Keybind.Add(this, horn);
             Keybind.Add(this, radioVolumeUp);
             Keybind.Add(this, radioVolumeDown);
         }
@@ -86,7 +97,7 @@ namespace ExtraBinds
                 return;
             }
 
-            UpdateIgnitionInfo();
+            UpdateInfo();
 
             // RADIO
             if (radioKnobFsm != null)
@@ -124,30 +135,69 @@ namespace ExtraBinds
                 }
             }
 
+            // HORN
+            if (hornObject != null)
+            {
+                if (horn.GetKeybindDown())
+                    hornObject.SetActive(true);
+
+                if (horn.GetKeybindUp())
+                    hornObject.SetActive(false);
+            }
+
             // LOOKING
             // For some reason, Satsuma's player pivot is rotated 180 degrees to the car's front
             // y u do dis, toplessgun?
-            vehicleDefaultLookAngle = playerCurrentVehicle.Value == "Satsuma" ? 180 : 0;
+            vehicleDefaultLookAngle = playerCurrentVehicle.Value == "Satsuma" || playerCurrentVehicle.Value == "Boat" ? 180 : 0;
 
             if (lookLeft.GetKeybind() || lookRight.GetKeybind() || lookBack.GetKeybind())
             {
                 isAnyLookKeyUp = true;
                 float lookAngle = currentLookAngle;
-                
+
+                if (lookLeft.GetKeybind() && !lookRight.GetKeybind() && !rightPressedFirst)
+                    leftPressedFirst = true;
+                else if (!lookLeft.GetKeybind() && lookRight.GetKeybind() && !leftPressedFirst)
+                    rightPressedFirst = true;
+
                 if (lookLeft.GetKeybind())
+                {
                     lookAngle *= -1;
+                }
 
                 // Look back if lookBack button is pressed, or lookLeft and lookRight are pressed at the same time
                 if (lookBack.GetKeybind() || (lookLeft.GetKeybind() && lookRight.GetKeybind()))
-                    lookAngle = LookBackAngle;
+                {
+                    if (playerCurrentVehicle.Value == "Gifu")
+                    {
+                        gifuStrafe.SendEvent("LEFT");
+                        lookAngle = 360 - LookBackAngle;
+                    }
+                    else
+                    {
+                        lookAngle = leftPressedFirst ? 360 - LookBackAngle : LookBackAngle;
+                    }
+                }
 
                 SetPlayerAngle(lookAngle);
             }
             else if (isAnyLookKeyUp)
             {
+                if (playerCurrentVehicle.Value == "Gifu")
+                {
+                    gifuStrafe.SendEvent("FINISHED");
+                }
                 isAnyLookKeyUp = false;
+                leftPressedFirst = false;
+                rightPressedFirst = false;
                 SetPlayerAngle(0);
             }    
+
+            if (lookLeft.GetKeybindUp())
+                leftPressedFirst = false;
+
+            if (lookRight.GetKeybindUp())
+                rightPressedFirst = false;
         }
 
         /// <summary>
@@ -170,7 +220,7 @@ namespace ExtraBinds
         /// <summary>
         /// Updates FSMs related to car ignition
         /// </summary>
-        void UpdateIgnitionInfo()
+        void UpdateInfo()
         {
             if (currentIgnitionFsm == playerCurrentVehicle.Value)
                 return;
@@ -182,6 +232,7 @@ namespace ExtraBinds
                 default:
                     currentIgnitionFsm = "";
                     radioKnobFsm = null;
+                    hornObject = null;
                     return;
                 case "Satsuma":
                     ignitionFsm = GameObject.Find("SATSUMA(557kg, 248)").transform.Find("Dashboard/Steering/steering_column2/Ignition").gameObject.GetComponent<PlayMakerFSM>();
@@ -206,26 +257,33 @@ namespace ExtraBinds
                             radioKnobFsm = null;
                         }
                     }
+
+                    hornObject = GameObject.Find("SATSUMA(557kg, 248)").transform.Find("CarSimulation/CarHorn").gameObject;
                     break;
                 case "Hayosiko":
                     ignitionFsm = GameObject.Find("HAYOSIKO(1500kg, 250)").transform.Find("LOD/Dashboard/Knobs/Ignition").gameObject.GetComponent<PlayMakerFSM>();
                     radioKnobFsm = GameObject.Find("HAYOSIKO(1500kg, 250)").transform.Find("RadioPivot/Radio/ButtonsRadio/RadioVolume").gameObject.GetComponent<PlayMakerFSM>();
+                    hornObject = GameObject.Find("HAYOSIKO(1500kg, 250)").transform.Find("LOD/Dashboard/ButtonHorn/CarHorn").gameObject;
                     break;
                 case "Ruscko":
                     ignitionFsm = GameObject.Find("RCO_RUSCKO12(270)").transform.Find("LOD/Dashboard/Knobs/Ignition").gameObject.GetComponent<PlayMakerFSM>();
                     radioKnobFsm = null;
+                    hornObject = GameObject.Find("RCO_RUSCKO12(270)").transform.Find("LOD/Dashboard/Knobs/ButtonHorn/CarHorn").gameObject;
                     break;
                 case "Kekmet":
                     ignitionFsm = GameObject.Find("KEKMET(350-400psi)").transform.Find("LOD/Dashboard/Ignition").gameObject.GetComponent<PlayMakerFSM>();
                     radioKnobFsm = GameObject.Find("KEKMET(350-400psi)").transform.Find("RadioPivot/Radio/ButtonsRadio/RadioVolume").gameObject.GetComponent<PlayMakerFSM>();
+                    hornObject = null;
                     break;
                 case "Gifu":
                     ignitionFsm = GameObject.Find("GIFU(750/450psi)").transform.Find("LOD/Dashboard/Ignition").gameObject.GetComponent<PlayMakerFSM>();
                     radioKnobFsm = GameObject.Find("GIFU(750/450psi)").transform.Find("RadioPivot/Radio/ButtonsRadio/RadioVolume").gameObject.GetComponent<PlayMakerFSM>();
+                    hornObject = GameObject.Find("GIFU(750/450psi)").transform.Find("LOD/Dashboard/ButtonHorn/CarHorn").gameObject;
                     break;
                 case "Ferndale":
                     ignitionFsm = GameObject.Find("FERNDALE(1630kg)").transform.Find("LOD/Dashboard/Knobs/Ignition").gameObject.GetComponent<PlayMakerFSM>();
                     radioKnobFsm = GameObject.Find("FERNDALE(1630kg)").transform.Find("RadioPivot/Radio/ButtonsRadio/RadioVolume").gameObject.GetComponent<PlayMakerFSM>();
+                    hornObject = GameObject.Find("FERNDALE(1630kg)").transform.Find("LOD/Dashboard/Knobs/ButtonHorn/CarHorn").gameObject;
                     break;
             }
 
